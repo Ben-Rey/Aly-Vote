@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Comment why you choose to do it like this
 
 // TODO - essayer de faire des sessions mapping de mapping : Factory ?
+
 // TODO - Option anonyme
-// Handle equality
 
-// TODO - L'admin peut etre corrompu
+// TODO - Handle equality
 // TODO - Utiliser systeme de role
-
-// TOCHECK - all functions are well securized
-// TOCHECK - Reduce uint
 
 pragma solidity 0.8.14;
 
@@ -18,15 +14,25 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contr
 /// @author Alyra Student
 /// @title Voting System
 contract VotingSystem is Ownable {
+    uint256 winningProposalId;
+    bool isWinnigProposal;
+    bool firstVote;
+
     struct Voter {
         bool isRegistered;
         bool hasVoted;
-        uint16 votedProposalId;
+        uint256 votedProposalId;
     }
 
     struct Proposal {
         string description;
-        uint32 voteCount;
+        uint256 voteCount;
+    }
+
+    struct Session {
+        Proposal[] proposals;
+        uint256 proposalId;
+        uint256 endOfSession;
     }
 
     enum WorkflowStatus {
@@ -38,18 +44,16 @@ contract VotingSystem is Ownable {
         VotesTallied // 5
     }
 
+    Session[] history;
     mapping(address => Voter) public addressToVoter;
+
     address[] public voters;
     WorkflowStatus public status;
     Proposal[] proposals;
 
-    uint16 winningProposalId;
-    bool isWinnigProposal;
-    bool firstVote;
-
     event VoterRegistered(address voterAddress);
-    event ProposalRegistered(uint16 proposalId);
-    event Voted(address voter, uint16 proposalId);
+    event ProposalRegistered(uint256 proposalId);
+    event Voted(address voter, uint256 proposalId);
     event WorkflowStatusChange(
         WorkflowStatus previousStatus,
         WorkflowStatus newStatus
@@ -59,6 +63,18 @@ contract VotingSystem is Ownable {
         // Allow blank vote
         proposals.push(Proposal("Vote Null", 0));
         proposals.push(Proposal("Vote Blanc", 1));
+        //Test
+        registerVoter(address(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2));
+        registerVoter(address(0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db));
+        registerVoter(address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4));
+        registerVoter(address(0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB));
+
+        proposals.push(Proposal("Proposal 1", 4));
+        proposals.push(Proposal("Proposal 2", 2));
+        proposals.push(Proposal("Proposal 3", 1));
+        proposals.push(Proposal("Proposal 4", 1));
+        proposals.push(Proposal("Proposal 5", 1));
+        firstVote = true;
     }
 
     function isVoterInList(address _address)
@@ -152,6 +168,9 @@ contract VotingSystem is Ownable {
     /// @notice Change the status to the next (only owner function)
     function nextStatus() external onlyOwner {
         require(uint256(status) < 5, "No status left");
+        if (status == WorkflowStatus.VotingSessionEnded) {
+            calculateWinnner();
+        }
         WorkflowStatus prevStatus = status;
         status = WorkflowStatus(uint256(status) + 1);
         emit WorkflowStatusChange(prevStatus, status);
@@ -167,13 +186,12 @@ contract VotingSystem is Ownable {
             "You have to provide a description"
         );
         require(!proposalExist(_description), "This porposal already exist");
-        require(proposals.length <= type(uint16).max, "Too much proposals");
 
         proposals.push(Proposal(_description, 0));
-        emit ProposalRegistered(uint16(proposals.length) - 1);
+        emit ProposalRegistered(proposals.length - 1);
     }
 
-    function vote(uint16 _proposalId)
+    function vote(uint256 _proposalId)
         external
         inStatus(WorkflowStatus.VotingSessionStarted)
         voterIsRegistered
@@ -193,17 +211,13 @@ contract VotingSystem is Ownable {
         emit Voted(msg.sender, _proposalId);
     }
 
-    function calculateWinnner()
-        external
-        onlyOwner
-        afterStatus(WorkflowStatus.VotingSessionEnded)
-    {
+    function calculateWinnner() private {
         require(firstVote, "No one voted");
         require(!isWinnigProposal, "Calcul already done");
         uint256 bestscore;
-        uint16 winnerId;
+        uint256 winnerId;
 
-        for (uint16 i; i < proposals.length; i++) {
+        for (uint256 i; i < proposals.length; i++) {
             if (proposals[i].voteCount > bestscore) {
                 bestscore = proposals[i].voteCount;
                 winnerId = i;
@@ -224,20 +238,22 @@ contract VotingSystem is Ownable {
         return winningProposalId;
     }
 
-    function resetVotingSystem() public onlyOwner {
+    function resetVotingSystem() external onlyOwner {
         status = WorkflowStatus(0);
 
         for (uint256 i = 0; i < voters.length - 1; i++) {
-            addressToVoter[voters[i]].isRegistered = false;
-            addressToVoter[voters[i]].hasVoted = false;
-            addressToVoter[voters[i]].votedProposalId = 0;
+            Voter memory tempVoter;
+            tempVoter.isRegistered = false;
+            tempVoter.hasVoted = false;
+            tempVoter.votedProposalId = 0;
+            addressToVoter[voters[i]] = tempVoter;
         }
 
         delete voters;
         delete proposals;
         // Add proposal temp to save gas ?
         proposals.push(Proposal("Vote Null", 0));
-        proposals.push(Proposal("Vote Blanc", 1));
+        proposals.push(Proposal("Vote Blanc", 0));
         isWinnigProposal = false;
     }
 }
