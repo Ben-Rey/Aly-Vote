@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
-
+// TODO - Handle equality
 // TODO - essayer de faire des sessions mapping de mapping : Factory ?
 
 // TODO - Option anonyme
-
-// TODO - Handle equality
 // TODO - Utiliser systeme de role
 
 pragma solidity 0.8.14;
@@ -14,7 +12,7 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contr
 /// @author Alyra Student
 /// @title Voting System
 contract VotingSystem is Ownable {
-    uint256 winningProposalId;
+    uint256[] winningProposalIds;
     bool isWinnigProposal;
     bool firstVote;
 
@@ -30,10 +28,11 @@ contract VotingSystem is Ownable {
     }
 
     struct Session {
-        Proposal[] proposals;
-        uint256 proposalId;
+        uint256[] winningProposalIds;
         uint256 endOfSession;
     }
+
+    mapping(uint256 => mapping(uint256 => Proposal)) proposalHistory;
 
     enum WorkflowStatus {
         RegisteringVoters, // 0
@@ -44,7 +43,7 @@ contract VotingSystem is Ownable {
         VotesTallied // 5
     }
 
-    Session[] history;
+    Session[] sessionHistory;
     mapping(address => Voter) public addressToVoter;
 
     address[] public voters;
@@ -64,17 +63,22 @@ contract VotingSystem is Ownable {
         proposals.push(Proposal("Vote Null", 0));
         proposals.push(Proposal("Vote Blanc", 1));
         //Test
-        registerVoter(address(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2));
-        registerVoter(address(0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db));
-        registerVoter(address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4));
-        registerVoter(address(0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB));
+        //registerVoter(address(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2));
+        //registerVoter(address(0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db));
+        //registerVoter(address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4));
+        //registerVoter(address(0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB));
 
-        proposals.push(Proposal("Proposal 1", 4));
-        proposals.push(Proposal("Proposal 2", 2));
-        proposals.push(Proposal("Proposal 3", 1));
-        proposals.push(Proposal("Proposal 4", 1));
-        proposals.push(Proposal("Proposal 5", 1));
-        firstVote = true;
+        //proposals.push(Proposal("Proposal 1", 4));
+        //proposals.push(Proposal("Proposal 1 Bis", 4));
+        //proposals.push(Proposal("Proposal 2", 2));
+        //proposals.push(Proposal("Proposal 3", 1));
+        //proposals.push(Proposal("Proposal 4", 4));
+        //proposals.push(Proposal("Proposal 5", 4));
+        //proposals.push(Proposal("Proposal 6", 1));
+
+        //firstVote = true;
+        //status = WorkflowStatus(5);
+        //calculateWinnner();
     }
 
     function isVoterInList(address _address)
@@ -212,46 +216,93 @@ contract VotingSystem is Ownable {
     }
 
     function calculateWinnner() private {
-        require(firstVote, "No one voted");
-        require(!isWinnigProposal, "Calcul already done");
         uint256 bestscore;
-        uint256 winnerId;
+        uint256[] memory winnerIds = new uint256[](proposals.length);
+
+        uint256 counter;
 
         for (uint256 i; i < proposals.length; i++) {
+            if (proposals[i].voteCount == bestscore) {
+                winnerIds[counter] = i;
+                counter++;
+            }
             if (proposals[i].voteCount > bestscore) {
+                counter = 0;
+                winnerIds = new uint256[](proposals.length);
+                winnerIds[counter] = i;
                 bestscore = proposals[i].voteCount;
-                winnerId = i;
+                counter++;
             }
         }
+        for (uint256 i; i < winnerIds.length; i++) {
+            if (winnerIds[i] == 0) {
+                break;
+            }
+            winningProposalIds.push(winnerIds[i]);
+        }
 
-        winningProposalId = winnerId;
+        if (winningProposalIds.length == 0) {
+            winningProposalIds.push(0);
+        }
+
         isWinnigProposal = true;
     }
 
-    function getWinnerId()
+    function getWinnerIds()
         external
         view
         inStatus(WorkflowStatus.VotesTallied)
-        returns (uint256)
+        returns (uint256[] memory)
     {
         require(isWinnigProposal, "The winner has not been chosen yet");
-        return winningProposalId;
+
+        return winningProposalIds;
     }
 
-    function resetVotingSystem() external onlyOwner {
-        status = WorkflowStatus(0);
+    function OldSessionWinner(uint256 _sessionId)
+        external
+        view
+        returns (Proposal[] memory)
+    {
+        require(sessionHistory.length > 0, "No history yet");
+        Proposal[] memory winnerProposals = new Proposal[](
+            sessionHistory[_sessionId].winningProposalIds.length
+        );
 
-        for (uint256 i = 0; i < voters.length - 1; i++) {
-            Voter memory tempVoter;
-            tempVoter.isRegistered = false;
-            tempVoter.hasVoted = false;
-            tempVoter.votedProposalId = 0;
-            addressToVoter[voters[i]] = tempVoter;
+        for (
+            uint256 i = 0;
+            i < sessionHistory[_sessionId].winningProposalIds.length;
+            i++
+        ) {
+            winnerProposals[i] = proposalHistory[_sessionId][
+                sessionHistory[_sessionId].winningProposalIds[i]
+            ];
+        }
+        return winnerProposals;
+    }
+
+    function resetVotingSystem(bool _saveSession)
+        external
+        onlyOwner
+        inStatus(WorkflowStatus.VotesTallied)
+    {
+        status = WorkflowStatus(0);
+        // Save in history
+        if (_saveSession) {
+            sessionHistory.push(Session(winningProposalIds, block.timestamp));
+            for (uint256 i = 0; i < proposals.length - 1; i++) {
+                proposalHistory[sessionHistory.length - 1][i] = proposals[i];
+            }
+
+            for (uint256 i = 0; i < voters.length - 1; i++) {
+                addressToVoter[voters[i]] = Voter(false, false, 0);
+            }
         }
 
         delete voters;
         delete proposals;
-        // Add proposal temp to save gas ?
+        delete winningProposalIds;
+
         proposals.push(Proposal("Vote Null", 0));
         proposals.push(Proposal("Vote Blanc", 0));
         isWinnigProposal = false;
