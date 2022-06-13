@@ -11,7 +11,7 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contr
 
 /// @author Alyra Student
 /// @title Voting System
-contract VotingSystem is Ownable {
+contract Voting is Ownable {
     uint256[] winningProposalIds;
     bool isWinnigProposal;
     bool firstVote;
