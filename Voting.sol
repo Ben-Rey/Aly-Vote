@@ -1,10 +1,4 @@
 // SPDX-License-Identifier: MIT
-// TODO - Handle equality
-// TODO - essayer de faire des sessions mapping de mapping : Factory ?
-
-// TODO - Option anonyme
-// TODO - Utiliser systeme de role
-
 // TODO si egalité on revote pour désigner le gagnant
 
 pragma solidity 0.8.14;
@@ -65,7 +59,6 @@ contract VotingSystem is Ownable {
     event WorkflowStatusChange(WorkflowStatus previousStatus, WorkflowStatus newStatus);
 
     function isVoterInList(address _address) private view returns (bool inList) {
-
         for (uint256 i; i < voters.length; i++) {
             if (voters[i].voterAddress == _address) {
                 if (voters[i].voterInfo.isRegistered) {
@@ -81,7 +74,6 @@ contract VotingSystem is Ownable {
         //require(isVoterInList(msg.sender), "Voter not registered");
         require(_voterIndex < voters.length, "This voter doesn't exist");
         require(voters[_voterIndex].voterAddress == msg.sender, "You can't vote for someone else");
-
         _;
     }
 
