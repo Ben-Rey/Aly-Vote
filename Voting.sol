@@ -196,7 +196,7 @@ contract VotingSystem is Ownable {
             tempWinners[i] = winnerIds[i];
         }
 
-        if (winningProposalIds.length == 0) {
+        if (tempWinners.length == 0) {
             tempWinners[0] = 0;
         }
 
