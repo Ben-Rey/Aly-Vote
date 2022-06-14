@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: MIT
+// TODO - Handle equality
+// TODO - essayer de faire des sessions mapping de mapping : Factory ?
+
+// TODO - Option anonyme
+// TODO - Utiliser systeme de role
+
 // TODO si egalité on revote pour désigner le gagnant
 
 pragma solidity 0.8.14;
@@ -58,6 +64,24 @@ contract VotingSystem is Ownable {
     event Voted(address voter, uint256 proposalId);
     event WorkflowStatusChange(WorkflowStatus previousStatus, WorkflowStatus newStatus);
 
+    constructor() {
+        //Test
+        registerVoter(address(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2));
+        registerVoter(address(0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db));
+        registerVoter(address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4));
+        registerVoter(address(0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB));
+
+        proposals.push(Proposal("Proposal 1", 0));
+        proposals.push(Proposal("Proposal 2", 1));
+        proposals.push(Proposal("Proposal 3", 0));
+        proposals.push(Proposal("Proposal 4", 0));
+        proposals.push(Proposal("Proposal 5", 0));
+        proposals.push(Proposal("Proposal 6", 0));
+
+        status = WorkflowStatus(3);
+        calculateWinnner();
+    }
+
     function isVoterInList(address _address) private view returns (bool inList) {
 
         for (uint256 i; i < voters.length; i++) {
@@ -97,7 +121,7 @@ contract VotingSystem is Ownable {
         return proposals;
     }
 
-    function getVoters() external view afterStatus(WorkflowStatus.ProposalsRegistrationStarted) returns (VoterWrapper[] memory) {
+    function getVoters() external view returns (VoterWrapper[] memory) {
         return voters;
     }
 
@@ -213,6 +237,7 @@ contract VotingSystem is Ownable {
     // Get the winners of an old session
     function OldSessionWinner(uint256 _sessionId) external view returns (Proposal[] memory) {
         require(sessionHistory.length > 0, "No history yet");
+        require(_sessionId < sessionHistory.length, "No history at this index");
 
         uint proposalLenght = sessionHistory[_sessionId].winningProposalIds.length;
         
